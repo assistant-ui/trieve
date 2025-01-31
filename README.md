@@ -1,34 +1,161 @@
-<a href="https://www.assistant-ui.com">
-  <img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/header.svg" alt="assistant-ui Header" width="100%" style="width: 1000px" />
-</a>
+---
+title: assistant-ui Trieve Integration
+---
 
-<p align="center">
-  <a href="https://www.assistant-ui.com">Product</a> ·
-  <a href="https://www.assistant-ui.com/docs/getting-started">Documentation</a> ·
-  <a href="https://www.assistant-ui.com/examples">Examples</a> ·
-  <a href="https://discord.gg/S9dwgCNEFs">Discord Community</a> ·
-  <a href="https://cal.com/simon-farshid/assistant-ui">Contact Sales</a>
-</p>
+## Overview
 
-**assistant-ui** is a set of React components for AI chat, with integrations Langchain, Vercel AI SDK, TailwindCSS, shadcn-ui, react-markdown, react-syntax-highlighter, React Hook Form and more!
+Integration with [Trieve](https://trieve.ai). You will need to get a Trieve Cloud account and set up a dataset to use this runtime at https://dashboard.trieve.ai.
 
-Wide model provider support (OpenAI, Anthropic, Mistral, Perplexity, AWS Bedrock, Azure, Google Gemini, Hugging Face, Fireworks, Cohere, Replicate, Ollama) out of the box and the ability to integrate custom APIs.
+This runtime will allow you to use Trieve Cloud to manage your assistant's responses, along with the ability to use Trieve's advanced features like tagging, filtering, analytics, and more.
 
-## Quick Start
+## Getting Started
 
-[![assistant-ui starter template](https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/assistant-ui-starter.gif)](https://youtu.be/k6Dc8URmLjk)
+import { Steps, Step } from "fumadocs-ui/components/steps";
 
-Step 1: Create a new project with `assistant-ui` pre-configured:
+<Steps>
+  <Step>
+  ### Create a Next.JS project
 
 ```sh
-npx create-assistant-ui@latest my-app
+npx create-next-app@latest my-app
 cd my-app
 ```
 
-Step 2: Update the `.env` file with your OpenAI API key.
+  </Step>
+  <Step>
 
-Step 3: Run the app:
+### Install `trieve-ts-sdk`, `@assistant-ui/react-trieve` and `@assistant-ui/react`
 
-```sh
-npm run dev
+```sh npm2yarn
+npm install @assistant-ui/react @assistant-ui/react-ui @assistant-ui/react-trieve trieve-ts-sdk
 ```
+
+  </Step>
+  <Step>
+
+### Set up environment variables
+
+```sh twoslash title=".env"
+NEXT_PUBLIC_TRIEVE_API_URL=https://api.trieve.ai
+NEXT_PUBLIC_TRIEVE_API_KEY="tr-*********************"
+NEXT_PUBLIC_TRIEVE_DATASET_ID="********-****-****-****-************"
+```
+
+  </Step>
+  <Step>
+### Setup Trieve SDK
+
+```tsx twoslash title="@/app/trieve.tsx"
+// @errors: 2307 2580
+"use client";
+
+import { TrieveSDK } from "trieve-ts-sdk";
+
+export const trieve = new TrieveSDK({
+  baseUrl: process.env["NEXT_PUBLIC_TRIEVE_API_URL"]!,
+  apiKey: process.env["NEXT_PUBLIC_TRIEVE_API_KEY"]!,
+  datasetId: process.env["NEXT_PUBLIC_TRIEVE_DATASET_ID"]!,
+});
+```
+
+  </Step>
+  <Step>
+
+### Define a `MyRuntimeProvider` component
+
+```tsx twoslash include MyRuntimeProvider title="@/app/MyRuntimeProvider.tsx"
+// @filename: /app/MyRuntimeProvider.tsx
+// ---cut---
+"use client";
+
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { useTrieveRuntime } from "@assistant-ui/react-trieve";
+import { trieve } from "@/app/trieve";
+
+export const TrieveRuntimeProvider = () => {
+  const runtime = useTrieveRuntime({
+    trieve,
+    // Define what you want to key the owners for threads on
+    ownerId: "abcd",
+    // Define tags that you want to use for filtering
+    tags: [
+      {
+        name: "Stories",
+        value: "story",
+      },
+    ],
+  });
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      {children}
+    </AssistantRuntimeProvider>
+  );
+};
+```
+
+  </Step>
+  <Step>
+
+### Wrap your app in `MyRuntimeProvider`
+
+```tsx twoslash title="@/app/layout.tsx"
+// @include: MyRuntimeProvider
+// @filename: /app/layout.tsx
+// ---cut---
+import type { ReactNode } from "react";
+import { TrieveRuntimeProvider } from "@/app/MyRuntimeProvider";
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: ReactNode;
+}>) {
+  return (
+    <TrieveRuntimeProvider>
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    </TrieveRuntimeProvider>
+  );
+}
+```
+
+### Example Usage
+
+```tsx twoslash title="@/app/layout.tsx"
+// @include: MyRuntimeProvider
+// @filename: /app/layout.tsx
+// ---cut---
+import { Thread } from "@assistant-ui/react-ui";
+import {
+  makeTrieveMarkdownText,
+  TrieveComposer,
+  TrieveThreadWelcome,
+  useTrieveExtras,
+} from "@assistant-ui/react-trieve";
+
+const TrieveMarkdownText = makeTrieveMarkdownText();
+
+export default function MyAssistant() {
+  const { title } = useTrieveExtras();
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden pt-8">
+      <p className="text-center text-xl font-bold">{title}</p>
+      <div className="flex-grow overflow-hidden">
+        <Thread
+          components={{
+            Composer: TrieveComposer,
+            ThreadWelcome: TrieveThreadWelcome,
+          }}
+          assistantMessage={{ components: { Text: TrieveMarkdownText } }}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+  </Step>
+</Steps>
